@@ -4,7 +4,8 @@ A smartphone-style firmware "OS" for ESP32 boards. Plug in a touch TFT and an SD
 
 It is firmware that behaves like an OS: FreeRTOS provides scheduling, LVGL provides the UI, and the apps and services are built into the image.
 
-**Status:** M0, toolchain and boot banner (work in progress)
+**Status:** Event handling, taskManager and other background processes are built first (in progress).
+
 
 ## Target hardware
 
