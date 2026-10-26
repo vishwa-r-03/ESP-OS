@@ -58,13 +58,18 @@ oraos/
 ├── sdkconfig.defaults
 ├── partitions.csv
 ├── CMakeLists.txt
-└── src/
+├── docs/ 
+└── main/
     ├── CMakeLists.txt
     ├── config.h
     ├── main.cpp
     ├── board/
+    ├── core/
     └── system/
 ```
+
+> **note:** `docs` contains all the design decisions, theory, logic and code explanation for every feature in the repo. If anyone is interested in understanding the whole project, kindly go through the `docs` folder. This will be your guide for this repo. 
+
 
 ## Build and flash
 
