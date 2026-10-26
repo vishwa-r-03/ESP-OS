@@ -1,5 +1,6 @@
-#include "sysInfo.h"
+#include "sysinfo.h"
 #include "config.h"
+#include <cstdint>
 
 #include "esp_log.h"
 #include "esp_chip_info.h"
