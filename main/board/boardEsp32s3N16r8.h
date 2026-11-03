@@ -15,6 +15,7 @@ namespace board {
     constexpr bool hasPsram     = true;
     constexpr bool hasBle       = true;
     constexpr bool hasBtClassic = false;
+    constexpr uint8_t cpuCores = 2;
 
     // pins are added here as each peripheral comes online
 }
