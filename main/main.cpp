@@ -5,11 +5,12 @@
 #include "config.h"
 #include "core/eventBus.h"
 #include "core/events.h"
-#include "system/sysinfo.h"
+#include "core/taskManager.h"
+#include "system/sysInfo.h"
 
 static const char *tag = "main";
 
-// listener task: sleeps on its mailbox and logs every event it receives
+// listener: sleeps on its mailbox and logs every event it receives
 static void listenerTask(void *param)
 {
     QueueHandle_t mailbox = static_cast<QueueHandle_t>(param);
@@ -23,43 +24,89 @@ static void listenerTask(void *param)
     }
 }
 
+// heartbeat: wakes at exact 1 s intervals (vTaskDelayUntil does not drift)
+static void heartbeatTask(void *param)
+{
+    (void)param;
+    TickType_t lastWake = xTaskGetTickCount();   // must be set once before the loop
+    uint32_t   beats    = 0;
+
+    for (;;) {
+        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(1000));
+        beats++;
+
+        if (beats % 5 == 0) {
+            eventBus::publish({events::eventType::sdCardInserted, 1, 0});
+        }
+        if (beats % 10 == 0) {
+            taskManager::report();
+        }
+    }
+}
+
+// worker: simulates a task that computes for a moment, then sleeps
+static void workerTask(void *param)
+{
+    (void)param;
+    volatile uint32_t sink = 0;   // volatile stops the compiler deleting the "work"
+
+    for (;;) {
+        for (uint32_t i = 0; i < 200000; i++) {
+            sink = sink + i;
+        }
+        vTaskDelay(pdMS_TO_TICKS(500));   // blocks, so lower-priority tasks and idle can run
+    }
+}
+
 extern "C" void app_main(void)
 {
     sysInfo::printBanner();
 
-    // 1. event bus
-    if (!eventBus::init()) {
-        ESP_LOGE(tag, "event bus init failed");
+    // services first, in dependency order
+    if (!eventBus::init() || !taskManager::init()) {
+        ESP_LOGE(tag, "core service init failed");
         return;
     }
 
-    // 2. mailbox for the listener
     QueueHandle_t mailbox = eventBus::createMailbox(config::defaultMailboxDepth);
     if (mailbox == nullptr) {
         ESP_LOGE(tag, "mailbox creation failed");
         return;
     }
-
-    // subscribe to bootComplete and sdCardInserted, deliberately NOT sdCardRemoved
     eventBus::subscribe(mailbox, events::eventType::bootComplete);
     eventBus::subscribe(mailbox, events::eventType::sdCardInserted);
 
-    // 3. listener task (stack size is in BYTES on ESP-IDF)
-    if (xTaskCreate(listenerTask, "listener", 4096, mailbox, 5, nullptr) != pdPASS) {
-        ESP_LOGE(tag, "listener task creation failed");
+    bool ok = true;
+
+    ok = ok && taskManager::spawn(taskManager::taskSpec{
+        .name       = "listener",
+        .entryPoint = listenerTask,
+        .stackBytes = config::stack::normal,
+        .param      = mailbox,
+        .priority   = config::prio::service,
+        .core       = taskManager::coreId::core0
+    });
+
+    ok = ok && taskManager::spawn(taskManager::taskSpec{
+        .name       = "heartbeat",
+        .entryPoint = heartbeatTask,
+        .stackBytes = config::stack::normal,
+        .priority   = config::prio::background
+    });
+
+    ok = ok && taskManager::spawn(taskManager::taskSpec{
+        .name       = "worker",
+        .entryPoint = workerTask,
+        .stackBytes = config::stack::normal,
+        .priority   = config::prio::service,
+        .core       = taskManager::coreId::core1
+    });
+
+    if (!ok) {
+        ESP_LOGE(tag, "failed to start system tasks");
         return;
     }
 
-    // 4. publish a boot event, then simulate an SD card coming and going
     eventBus::publish({events::eventType::bootComplete, 0, 0});
-
-    const TickType_t oneSecond = pdMS_TO_TICKS(1000);
-
-    for (;;) {
-        eventBus::publish({events::eventType::sdCardInserted, 1, 0});
-        vTaskDelay(oneSecond);
-
-        eventBus::publish({events::eventType::sdCardRemoved, 1, 0});
-        vTaskDelay(oneSecond);
-    }
+    ESP_LOGI(tag, "boot complete");
 }

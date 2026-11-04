@@ -16,10 +16,13 @@ namespace taskManager{
         const char *name;             //Task name (for debugging / FreeRTOS tracking)
         TaskFunction_t entryPoint;    //Task entry point (function pointer)
         uint32_t stackBytes;          //Stack size in bytes (not words) for ESP-IDF
-        void *param;                  //Parameter pointer passed to the task entry function
+        void *param = nullptr;        //Parameter pointer passed to the task entry function
         UBaseType_t priority;         //Task priority (0=lowest, configMAX_PRIORITIES-1=highest)
-        coreId core;                  //Target CPU core (or taskNO_AFFINITY)
+        coreId core = coreId::any;    //Target CPU core (or taskNO_AFFINITY)
     };
+
+    // call once at boot, before any spawn()
+    bool init();
 
     // Spawns a new task using the provided specification
     bool spawn(const taskSpec &spec, TaskHandle_t *outHandle = nullptr);
