@@ -1,4 +1,5 @@
 #pragma once
+#include "cstdint"
 
 // ESP32-S3 N16R8 dev board: 16 MB flash, 8 MB octal PSRAM.
 //
